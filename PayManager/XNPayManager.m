@@ -83,7 +83,7 @@
     }
     
     if (!kDictIsEmpty(dict)) {
-        
+#warning 和后台对一下参数  可能有的不一样        
         //调起微信支付
         PayReq *req = [[PayReq alloc]init];
         req.openID = dict[@"appid"];
@@ -151,6 +151,7 @@
     
     self.successBlock = successBlock;
     self.failBolck = failBolck;
+#warning 请填写appScheme
     NSString *appScheme = @"appScheme";
     [[AlipaySDK defaultService] payOrder:params fromScheme:appScheme callback:^(NSDictionary *resultDic) {
         DLog(@"我这里是payVC%@",resultDic);
@@ -343,6 +344,7 @@
         // 可以在钥匙串中保存 也可以在偏好设置中保存(避免丢单)
         
         // 请求自己的服务器去验证用户购买结果
+#warning 采用服务器验证
         
         // 验证成功
         self.successBlock(APPSTOREPAYSUCESS);
