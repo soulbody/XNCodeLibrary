@@ -15,3 +15,9 @@ XNCodeLibrary总结项目中常用的方法
 	```
 	基于七牛SDK的封装,可以实现断点续传
 	```
+- UIDevice+XNLPhoneModel
+
+	```
+	获取当前手机的具体型号
+	使用方法: [UIDevice currentDevice].phoneModel
+	```
