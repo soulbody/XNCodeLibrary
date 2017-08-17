@@ -9,9 +9,11 @@
 #import "XNPayManager.h"
 #import "MBProgressHUD.h"
 
-
-
 #define kKeyWindow [UIApplication sharedApplication].keyWindow
+
+NSString *const KTransactionReceipt = @"KTransactionReceipt";
+NSString *const KOrderId = @"KOrderId";
+
 //字典是否为空
 #define kDictIsEmpty(dic) (dic == nil || [dic isKindOfClass:[NSNull class]] || dic.allKeys == 0)
 
@@ -35,6 +37,13 @@
  */
 @property (nonatomic, copy) NSString *productId;
 
+/**
+ 服务器订单号
+ */
+@property (nonatomic, copy) NSString *orderId;
+
+@property (nonatomic, strong) MBProgressHUD *hud;
+
 @end
 
 @implementation XNPayManager
@@ -50,6 +59,18 @@
         instance = [[XNPayManager alloc] init];
     });
     return instance;
+}
+
+- (void)addTransactionObserver {
+    
+    [[SKPaymentQueue defaultQueue] addTransactionObserver:[XNPayManager sharedPayManager]];
+}
+
+
+- (void)removeTransactionObserver {
+    
+    [[SKPaymentQueue defaultQueue] removeTransactionObserver:[XNPayManager sharedPayManager]];
+
 }
 #pragma mark -----------------------------------微信-----------------------------------
 
@@ -83,7 +104,7 @@
     }
     
     if (!kDictIsEmpty(dict)) {
-#warning 和后台对一下参数  可能有的不一样        
+        
         //调起微信支付
         PayReq *req = [[PayReq alloc]init];
         req.openID = dict[@"appid"];
@@ -115,18 +136,24 @@
         switch (resp.errCode) {
             case WXSuccess:{
                 strMsg = @"支付结果：成功！";
-                self.successBlock(WXSUCESS);
+                if (self.successBlock) {
+                    self.successBlock(WXSUCESS);
+                }
                 DLog(@"支付成功－PaySuccess，retcode = %d", resp.errCode);
                 break;
             }
             case WXErrCodeUserCancel:{
                 strMsg = @"支付结果：取消";
-                self.failBolck(WXSCANCEL);
+                if (self.failBolck) {
+                    self.failBolck(WXSCANCEL);
+                }
                 DLog(@"支付取消－PayCancel，retcode = %d", resp.errCode);
             }
             default:{
                 strMsg = @"支付结果：失败";
-                self.failBolck(WXERROR);
+                if (self.failBolck) {
+                    self.failBolck(WXERROR);
+                }
                 DLog(@"错误，retcode = %d, retstr = %@", resp.errCode,resp.errStr);
                 break;
             }
@@ -151,7 +178,6 @@
     
     self.successBlock = successBlock;
     self.failBolck = failBolck;
-#warning 请填写appScheme
     NSString *appScheme = @"appScheme";
     [[AlipaySDK defaultService] payOrder:params fromScheme:appScheme callback:^(NSDictionary *resultDic) {
         DLog(@"我这里是payVC%@",resultDic);
@@ -173,23 +199,33 @@
         switch (resultStatus) {
             case 9000:
                 [self tipMessageAlert:@"支付结果" message:@"订单支付成功"];
-                self.successBlock(ALIPAYSUCESS);
+                if (self.successBlock) {
+                    self.successBlock(ALIPAYSUCESS);
+                }
                 break;
             case 8000:
                 [self tipMessageAlert:@"支付结果" message:@"正在处理中"];
-                self.failBolck(ALIPAYERROR);
+                if (self.failBolck) {
+                    self.failBolck(ALIPAYERROR);
+                }
                 break;
             case 4000:
                 [self tipMessageAlert:@"支付结果" message:@"订单支付失败,请稍后再试"];
-                self.failBolck(ALIPAYERROR);
+                if (self.failBolck) {
+                    self.failBolck(ALIPAYERROR);
+                }
                 break;
             case 6001:
                 [self tipMessageAlert:@"支付结果" message:@"已取消支付"];
-                self.failBolck(ALIPAYCANCEL);
+                if (self.failBolck) {
+                    self.failBolck(ALIPAYCANCEL);
+                }
                 break;
             case 6002:
                 [self tipMessageAlert:@"支付结果" message:@"网络连接错误,请稍后再试"];
-                self.failBolck(ALIPAYERROR);
+                if (self.failBolck) {
+                    self.failBolck(ALIPAYERROR);
+                }
                 break;
             default:
                 break;
@@ -209,6 +245,7 @@
  @param failBolck 失败的回调
  */
 - (void)requestProductData:(NSString *)productId
+                   orderId:(NSString *)orderId
                    success:(void(^)(PayCode code)) successBlock
                    failure:(void(^)(PayCode code)) failBolck {
 
@@ -217,9 +254,12 @@
         self.failBolck = failBolck;
         // 最好设置上
         MBProgressHUD *hud = [MBProgressHUD showHUDAddedTo:kKeyWindow animated:YES];
-        hud.labelText = @"正在购买,请勿离开...";
+        hud.labelText = @"正在购买,请不要离开...";
         hud.dimBackground = YES;
         self.productId = productId;
+        self.orderId = orderId;
+        self.hud = hud;
+    
         NSArray *productArr = [[NSArray alloc]initWithObjects:productId, nil];
         
         NSSet *productSet = [NSSet setWithArray:productArr];
@@ -278,16 +318,18 @@
 - (void)requestDidFinish:(SKRequest *)request {
     
     DLog(@"获取产品成功");
-    [MBProgressHUD hideHUDForView:kKeyWindow animated:YES];
+//    [MBProgressHUD hideHUDForView:kKeyWindow animated:YES];
     
     
 }
 - (void)request:(SKRequest *)request didFailWithError:(NSError *)error {
     
+    [MBProgressHUD hideHUDForView:kKeyWindow animated:YES];
+    
     MBProgressHUD *hud = [MBProgressHUD showHUDAddedTo:kKeyWindow animated:YES];
     hud.labelText = @"购买失败";
     hud.mode = MBProgressHUDModeText;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [MBProgressHUD hideHUDForView:kKeyWindow animated:YES];
     });
     
@@ -304,15 +346,18 @@
         switch (tran.transactionState) {
             case SKPaymentTransactionStatePurchased: //交易完成
                 [self completeTransaction:tran];
+                // Remove the transaction from the payment queue.
+                [[SKPaymentQueue defaultQueue] finishTransaction: tran];
                 break;
             case SKPaymentTransactionStatePurchasing: //商品添加进列表
-                
                 break;
             case SKPaymentTransactionStateRestored: //购买过
                 [self restoreTransaction:tran];
                 break;
             case SKPaymentTransactionStateFailed: //交易失败
                 [self failedTransaction:tran];
+                // Remove the transaction from the payment queue.
+                [[SKPaymentQueue defaultQueue] finishTransaction: tran];
                 break;
                 
             default:
@@ -336,35 +381,42 @@
     transactionReceiptString = [receiptData base64EncodedStringWithOptions:NSDataBase64EncodingEndLineWithLineFeed];
     
     DLog(@"transactionReceiptString == %@",transactionReceiptString);
+    
     if ([productIdentifier length] > 0) {
-        MBProgressHUD *hud = [MBProgressHUD showHUDAddedTo:kKeyWindow animated:YES];
-        hud.labelText = @"正在验证,请勿离开...";
-        hud.dimBackground = YES;
+
+        self.hud.labelText = @"正在验证,请勿离开...";
         // 保存购买凭证
-        // 可以在钥匙串中保存 也可以在偏好设置中保存(避免丢单)
-        
-        // 请求自己的服务器去验证用户购买结果
-#warning 采用服务器验证
-        
-        // 验证成功
-        self.successBlock(APPSTOREPAYSUCESS);
-        [MBProgressHUD hideAllHUDsForView:kKeyWindow animated:YES];
-        // 删除购买凭证(必须)
-        
+        // 请求自己的服务器去验证用户购买结果        
+        [[XNLTool shareAPIConfig] xnliveAdCoinWithAppleReceipt:transactionReceiptString buyId:self.orderId finished:^(id result, NSError *error) {
+            // 往后台验证
+            [MBProgressHUD hideAllHUDsForView:kKeyWindow animated:YES];
+            if ([result[@"code"] integerValue] == 200) {
+                // 验证成功
+                if (self.successBlock) {
+                    self.successBlock(APPSTOREPAYSUCESS);
+                }
+            }
+        }];
     }
-    // Remove the transaction from the payment queue.
-    [[SKPaymentQueue defaultQueue] finishTransaction: transaction];
+
+
 }
 - (void)failedTransaction:(SKPaymentTransaction *)transaction {
     if(transaction.error.code != SKErrorPaymentCancelled) {
         DLog(@"购买失败");
-        self.failBolck(APPSTOREPAYCANCEL);
+        if (self.failBolck) {
+            self.failBolck(APPSTOREPAYCANCEL);
+        }
+        
     } else {
         DLog(@"用户取消交易");
-        self.failBolck(APPSTOREPAYCANCEL);
+        if (self.failBolck) {
+            self.failBolck(APPSTOREPAYCANCEL);
+        }
+
     }
+    [MBProgressHUD hideHUDForView:kKeyWindow animated:YES];
     [SMGlobalMethod showViewCenter:kKeyWindow.center longMessage:@"购买失败"];
-    [[SKPaymentQueue defaultQueue] finishTransaction: transaction];
 }
 
 - (void)restoreTransaction:(SKPaymentTransaction *)transaction {

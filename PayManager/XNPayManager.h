@@ -7,9 +7,13 @@
 //
 
 #import <Foundation/Foundation.h>
-#import <AlipaySDK/AlipaySDK.h>
 #import "WXApi.h"
 #import <StoreKit/StoreKit.h>
+
+
+FOUNDATION_EXPORT NSString *const KTransactionReceipt;
+FOUNDATION_EXPORT NSString *const KOrderId;
+
 /**
  支付状态码
  */
@@ -23,12 +27,12 @@ typedef NS_ENUM(NSInteger, PayCode) {
     ALIPAYCANCEL        = 1103,   /**支付宝支付取消*/
     
     APPSTOREPAYSUCESS   = 1201,   /**内购支付成功*/
-    APPSTOREPAYERROR    = 1201,   /**内购支付成功*/
-    APPSTOREPAYCANCEL   = 1201,   /**内购支付成功*/
+    APPSTOREPAYERROR    = 1202,   /**内购支付出错*/
+    APPSTOREPAYCANCEL   = 1203,   /**内购支付取消*/
 };
 
 
-@interface XNPayManager : NSObject
+@interface XNPayManager : NSObject<SKPaymentTransactionObserver,SKProductsRequestDelegate>
 
 
 /**
@@ -36,6 +40,9 @@ typedef NS_ENUM(NSInteger, PayCode) {
  */
 + (instancetype)sharedPayManager;
 
+- (void)addTransactionObserver;
+
+- (void)removeTransactionObserver;
 
 /**
  微信支付
@@ -69,6 +76,7 @@ typedef NS_ENUM(NSInteger, PayCode) {
  @param failBolck 失败的回调
  */
 - (void)requestProductData:(NSString *)productId
+                   orderId:(NSString *)orderId
                    success:(void(^)(PayCode code)) successBlock
                    failure:(void(^)(PayCode code)) failBolck;
 
