@@ -30,3 +30,10 @@ XNCodeLibrary总结项目中常用的方法
 	自定义ShareSDK分享UI,可参考实现复杂UI效果
 	
 	```
+	
+- YDUserDefaultsManager
+	
+	```
+	简单封装NSUserDefaults
+	
+	```
